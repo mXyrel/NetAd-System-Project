@@ -1,0 +1,36 @@
+# ============================================================
+# NetGuard — Python Dependencies
+# Install with: pip install -r requirements.txt
+# ============================================================
+
+# ── Core web framework ───────────────────────────────────────
+Flask==3.0.3
+
+# ── Database ORM ─────────────────────────────────────────────
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.31
+
+# ── PostgreSQL driver (required for Railway / production) ────
+# This is what actually talks to PostgreSQL.
+# Also works fine with SQLite for local development.
+psycopg2-binary==2.9.12
+
+# ── Authentication ────────────────────────────────────────────
+Flask-Login==0.6.3
+Werkzeug==3.0.3        # password hashing (generate_password_hash / check_password_hash)
+
+# ── Rate limiting (brute-force protection) ───────────────────
+Flask-Limiter==3.7.0
+limits==3.13.0
+
+# ── Environment variable loading (.env file) ─────────────────
+python-dotenv==1.0.1
+
+# ── Production WSGI server ────────────────────────────────────
+# Gunicorn replaces Flask's built-in dev server on Railway.
+gunicorn==22.0.0
+
+# ── Database migrations (optional but recommended) ───────────
+# Uncomment when you're ready for schema migrations:
+# Flask-Migrate==4.0.7
+# alembic==1.13.2

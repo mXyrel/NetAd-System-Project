@@ -1,0 +1,19 @@
+# ============================================================
+# Railway Deployment Configuration
+# ============================================================
+# Railway reads this file automatically when you connect your
+# GitHub repo. You don't need to configure anything in the UI
+# beyond adding a PostgreSQL plugin and setting variables.
+# ============================================================
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[healthcheck]
+path = "/login"
+timeout = 30

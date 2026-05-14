@@ -1,0 +1,61 @@
+# ============================================================
+# NetGuard — .gitignore
+# CRITICAL: This file protects your credentials from GitHub.
+# Never remove .env from this list.
+# ============================================================
+
+# ── SECRET: Environment variables & credentials ──────────────
+.env
+.env.local
+.env.production
+secrets.py
+config_local.py
+
+# ── Python cache & bytecode ───────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+
+# ── Virtual environments ──────────────────────────────────────
+venv/
+env/
+.venv/
+ENV/
+.env/
+
+# ── SQLite database files (local dev only) ────────────────────
+# PostgreSQL on Railway stores data externally — these are local only.
+*.db
+*.sqlite
+*.sqlite3
+instance/
+
+# ── Flask / Python packaging ──────────────────────────────────
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── IDE and editor files ──────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Logs ──────────────────────────────────────────────────────
+# Application logs go into PostgreSQL, not files.
+# But if any file logs are generated:
+*.log
+logs/
+
+# ── Testing ───────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Railway / deployment artifacts ───────────────────────────
+.railway/
