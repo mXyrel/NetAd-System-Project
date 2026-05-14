@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block body %}
+<div class="dashboard-root">
+
+  <!-- ══ SIDEBAR ══════════════════════════════════════════════════════════ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <i class="bi bi-shield-lock-fill brand-icon"></i>
+      <span class="brand-name">Group 8</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('dashboard.index') }}" class="nav-item active">
+        <i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span>
+      </a>
+      <a href="{{ url_for('dashboard.logs') }}" class="nav-item">
+        <i class="bi bi-journal-text"></i><span>Logs</span>
+      </a>
+      {% if current_user.is_admin() %}
+      <a href="{{ url_for('dashboard.users') }}" class="nav-item">
+        <i class="bi bi-people-fill"></i><span>Users</span>
+      </a>
+      {% endif %}
+    </nav>
+
+    <div class="sidebar-user">
+      <div class="user-avatar"><i class="bi bi-person-circle"></i></div>
+      <div class="user-info">
+        <div class="user-name">{{ current_user.username }}</div>
+        <div class="user-role">{{ current_user.role | capitalize }}</div>
+      </div>
+      <a href="{{ url_for('auth.logout') }}" class="logout-btn" title="Logout">
+        <i class="bi bi-box-arrow-right"></i>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN CONTENT ═════════════════════════════════════════════════════ -->
+  <main class="main-content">
+
+    <!-- Top bar -->
+    <header class="topbar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+        <i class="bi bi-list"></i>
+      </button>
+      <div class="topbar-title">
+        <span>Network Monitoring Dashboard</span>
+        <span class="topbar-sub" id="top-clock"></span>
+      </div>
+      <div class="topbar-actions">
+        <!-- Alert bell -->
+        <div class="position-relative">
+          <button class="action-btn" data-bs-toggle="offcanvas" data-bs-target="#alertsPanel" aria-label="Alerts">
+            <i class="bi bi-bell-fill"></i>
+            {% if unresolved_alerts %}
+            <span class="alert-badge">{{ unresolved_alerts|length }}</span>
+            {% endif %}
+          </button>
+        </div>
+        <!-- Refresh -->
+        <button class="action-btn" onclick="forceRefresh()" title="Refresh all devices">
+          <i class="bi bi-arrow-clockwise" id="refresh-icon"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- ── STATS ROW ──────────────────────────────────────────────────── -->
+    <section class="stats-row">
+      <div class="stat-card green">
+        <div class="stat-icon"><i class="bi bi-wifi"></i></div>
+        <div class="stat-body">
+          <div class="stat-num" id="stat-online">{{ online_count }}</div>
+          <div class="stat-label">Devices Online</div>
+        </div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-icon"><i class="bi bi-wifi-off"></i></div>
+        <div class="stat-body">
+          <div class="stat-num" id="stat-offline">{{ offline_count }}</div>
+          <div class="stat-label">Devices Offline</div>
+        </div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-icon"><i class="bi bi-shield-exclamation"></i></div>
+        <div class="stat-body">
+          <div class="stat-num" id="stat-failed">{{ failed_today }}</div>
+          <div class="stat-label">Failed Logins Today</div>
+        </div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-icon"><i class="bi bi-database-fill"></i></div>
+        <div class="stat-body">
+          <div class="stat-num" id="stat-total">{{ total_logs }}</div>
+          <div class="stat-label">Total Log Entries</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CAMERA + DEVICE CARDS ROW ─────────────────────────────────── -->
+    <section class="content-row">
+
+      <!-- Camera feed panel -->
+      <div class="panel camera-panel">
+        <div class="panel-header">
+          <i class="bi bi-camera-video-fill me-2"></i>Live Camera Feed
+          <span class="panel-badge ms-auto" id="cam-status-badge">
+            {% if camera %}
+              <span class="status-dot {{ 'online' if camera.status == 'online' else 'offline' }}"></span>
+              {{ camera.status | capitalize }}
+            {% else %}
+              <span class="status-dot offline"></span>No camera
+            {% endif %}
+          </span>
+        </div>
+
+        <div class="camera-viewport">
+          {% if camera and camera.stream_url %}
+            <!-- MJPEG stream: <img> tag auto-streams from IP camera -->
+            <img
+              id="camera-stream"
+              src="{{ camera.stream_url }}"
+              alt="Camera feed"
+              class="camera-img"
+              onerror="cameraError()"
+            />
+          {% elif camera %}
+            <!-- No stream URL yet — show placeholder with IP info -->
+            <div class="camera-placeholder">
+              <i class="bi bi-camera-video-off"></i>
+              <p>Stream URL not configured</p>
+              <p class="cam-ip">{{ camera.ip_address }}</p>
+              {% if current_user.is_admin() %}
+              <button class="btn-sm-custom" data-bs-toggle="modal" data-bs-target="#editDevice{{ camera.id }}">
+                <i class="bi bi-pencil me-1"></i>Configure Stream
+              </button>
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="camera-placeholder">
+              <i class="bi bi-camera-video-off"></i>
+              <p>No camera device configured</p>
+            </div>
+          {% endif %}
+        </div>
+
+        {% if camera %}
+        <div class="camera-footer">
+          <span><i class="bi bi-geo-alt me-1"></i>{{ camera.ip_address }}</span>
+          <span><i class="bi bi-clock me-1"></i>
+            {% if camera.last_seen %}
+              {{ camera.last_seen.strftime('%H:%M:%S') }}
+            {% else %}Never{% endif %}
+          </span>
+          <button class="ping-btn" onclick="pingSingle({{ camera.id }}, this)">
+            <i class="bi bi-activity"></i> Ping
+          </button>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Device Status Cards -->
+      <div class="panel device-panel">
+        <div class="panel-header">
+          <i class="bi bi-hdd-network-fill me-2"></i>Hardware Devices
+          <button class="ms-auto btn-sm-custom" onclick="forceRefresh()">
+            <i class="bi bi-arrow-repeat me-1"></i>Check All
+          </button>
+        </div>
+
+        <div class="device-list" id="device-list">
+          {% for device in devices %}
+          <div class="device-card" id="device-{{ device.id }}">
+            <div class="device-icon-wrap {{ device.status }}">
+              {% if device.device_type == 'camera' %}
+                <i class="bi bi-camera-video-fill"></i>
+              {% elif device.device_type == 'router' %}
+                <i class="bi bi-router-fill"></i>
+              {% elif device.device_type == 'switch' %}
+                <i class="bi bi-diagram-3-fill"></i>
+              {% else %}
+                <i class="bi bi-hdd-fill"></i>
+              {% endif %}
+            </div>
+
+            <div class="device-info">
+              <div class="device-name">{{ device.name }}</div>
+              <div class="device-ip">{{ device.ip_address }}</div>
+            </div>
+
+            <div class="device-right">
+              <span class="device-status {{ device.status }}" id="status-{{ device.id }}">
+                <span class="status-dot {{ device.status }}"></span>
+                {{ device.status | capitalize }}
+              </span>
+              <div class="device-actions">
+                <button class="ping-btn" onclick="pingSingle({{ device.id }}, this)" title="Ping device">
+                  <i class="bi bi-activity"></i>
+                </button>
+                {% if current_user.is_admin() %}
+                <button class="edit-btn" data-bs-toggle="modal" data-bs-target="#editDevice{{ device.id }}" title="Edit device">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Edit Device Modal -->
+          {% if current_user.is_admin() %}
+          <div class="modal fade" id="editDevice{{ device.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content dark-modal">
+                <div class="modal-header">
+                  <h5 class="modal-title"><i class="bi bi-pencil-fill me-2"></i>Edit — {{ device.name }}</h5>
+                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{{ url_for('dashboard.update_device', device_id=device.id) }}">
+                  <div class="modal-body">
+                    <div class="mb-3">
+                      <label class="form-label">Device Name</label>
+                      <input type="text" name="name" class="form-control dark-input" value="{{ device.name }}" required />
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label">IP Address</label>
+                      <input type="text" name="ip_address" class="form-control dark-input" value="{{ device.ip_address }}" placeholder="192.168.1.x" />
+                    </div>
+                    {% if device.device_type == 'camera' %}
+                    <div class="mb-3">
+                      <label class="form-label">Stream URL
+                        <small class="text-muted">(MJPEG, snapshot, or RTSP proxy)</small>
+                      </label>
+                      <input type="url" name="stream_url" class="form-control dark-input" value="{{ device.stream_url or '' }}" placeholder="http://192.168.1.100/video.mjpg" />
+                      <div class="form-text">
+                        Common formats:<br>
+                        MJPEG: <code>http://&lt;ip&gt;/video.mjpg</code><br>
+                        Snapshot: <code>http://&lt;ip&gt;/snapshot.jpg</code>
+                      </div>
+                    </div>
+                    {% endif %}
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ── ACTIVITY LOG ───────────────────────────────────────────────── -->
+    <section class="panel log-panel">
+      <div class="panel-header">
+        <i class="bi bi-terminal-fill me-2"></i>Live Activity Log
+        <span class="ms-auto">
+          <a href="{{ url_for('dashboard.logs') }}" class="btn-sm-custom">
+            View all <i class="bi bi-arrow-right ms-1"></i>
+          </a>
+        </span>
+      </div>
+
+      <div class="log-table-wrap">
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Username</th>
+              <th>IP Address</th>
+              <th>Action</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="log-tbody">
+            {% for log in recent_logs %}
+            <tr class="{{ 'row-fail' if not log.success else 'row-ok' }}">
+              <td class="td-time">{{ log.timestamp.strftime('%H:%M:%S') }}</td>
+              <td><i class="bi bi-person me-1 text-muted"></i>{{ log.username_attempted }}</td>
+              <td><code>{{ log.ip_address }}</code></td>
+              <td>{{ log.action | capitalize }}</td>
+              <td>
+                {% if log.success %}
+                  <span class="badge-ok"><i class="bi bi-check-circle me-1"></i>Success</span>
+                {% else %}
+                  <span class="badge-fail"><i class="bi bi-x-circle me-1"></i>Failed</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-muted py-3">No log entries yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main><!-- /main-content -->
+
+</div><!-- /dashboard-root -->
+
+
+<!-- ══ ALERTS OFFCANVAS ═══════════════════════════════════════════════════ -->
+<div class="offcanvas offcanvas-end dark-offcanvas" id="alertsPanel" tabindex="-1">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title">
+      <i class="bi bi-bell-fill me-2"></i>Security Alerts
+    </h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    {% if unresolved_alerts %}
+      {% for alert in unresolved_alerts %}
+      <div class="alert-item {{ alert.severity }}">
+        <div class="alert-item-header">
+          <span class="alert-type-badge {{ alert.severity }}">{{ alert.severity | upper }}</span>
+          <span class="alert-time">{{ alert.timestamp.strftime('%H:%M %d/%m') }}</span>
+        </div>
+        <div class="alert-msg">{{ alert.message }}</div>
+        {% if alert.ip_address %}
+        <div class="alert-ip"><code>{{ alert.ip_address }}</code></div>
+        {% endif %}
+        {% if current_user.is_admin() %}
+        <form method="POST" action="{{ url_for('dashboard.resolve_alert', alert_id=alert.id) }}" class="mt-2">
+          <button type="submit" class="btn-sm-custom">
+            <i class="bi bi-check me-1"></i>Resolve
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="text-center py-5 text-muted">
+        <i class="bi bi-shield-check display-4 d-block mb-3" style="color:var(--clr-green)"></i>
+        No active alerts
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

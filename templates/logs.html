@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Logs{% endblock %}
+
+{% block body %}
+<div class="dashboard-root">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <i class="bi bi-shield-lock-fill brand-icon"></i>
+      <span class="brand-name">Group 8</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('dashboard.index') }}" class="nav-item">
+        <i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span>
+      </a>
+      <a href="{{ url_for('dashboard.logs') }}" class="nav-item active">
+        <i class="bi bi-journal-text"></i><span>Logs</span>
+      </a>
+      {% if current_user.is_admin() %}
+      <a href="{{ url_for('dashboard.users') }}" class="nav-item">
+        <i class="bi bi-people-fill"></i><span>Users</span>
+      </a>
+      {% endif %}
+    </nav>
+    <div class="sidebar-user">
+      <div class="user-avatar"><i class="bi bi-person-circle"></i></div>
+      <div class="user-info">
+        <div class="user-name">{{ current_user.username }}</div>
+        <div class="user-role">{{ current_user.role | capitalize }}</div>
+      </div>
+      <a href="{{ url_for('auth.logout') }}" class="logout-btn"><i class="bi bi-box-arrow-right"></i></a>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+      <div class="topbar-title">Audit Logs</div>
+    </header>
+
+    <section class="panel" style="margin:1.5rem">
+      <div class="panel-header">
+        <i class="bi bi-journal-text me-2"></i>Login & Access Logs
+
+        <!-- Filter tabs -->
+        <div class="ms-auto d-flex gap-2">
+          <a href="?type=all"     class="btn-sm-custom {{ 'active' if log_type == 'all' }}">All</a>
+          <a href="?type=success" class="btn-sm-custom {{ 'active' if log_type == 'success' }}">Success</a>
+          <a href="?type=failed"  class="btn-sm-custom {{ 'active' if log_type == 'failed' }}">Failed</a>
+        </div>
+      </div>
+
+      <div class="log-table-wrap">
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Timestamp</th>
+              <th>Username</th>
+              <th>IP Address</th>
+              <th>Action</th>
+              <th>User Agent</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in pagination.items %}
+            <tr class="{{ 'row-fail' if not log.success else 'row-ok' }}">
+              <td class="text-muted">{{ log.id }}</td>
+              <td class="td-time">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+              <td><i class="bi bi-person me-1 text-muted"></i>{{ log.username_attempted }}</td>
+              <td><code>{{ log.ip_address }}</code></td>
+              <td>{{ log.action | capitalize }}</td>
+              <td class="text-muted small" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                {{ log.user_agent[:60] if log.user_agent else '-' }}
+              </td>
+              <td>
+                {% if log.success %}
+                  <span class="badge-ok"><i class="bi bi-check-circle me-1"></i>Success</span>
+                {% else %}
+                  <span class="badge-fail"><i class="bi bi-x-circle me-1"></i>Failed</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-muted py-4">No log entries found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      {% if pagination.pages > 1 %}
+      <div class="d-flex justify-content-center gap-2 py-3">
+        {% if pagination.has_prev %}
+          <a href="?page={{ pagination.prev_num }}&type={{ log_type }}" class="btn-sm-custom">← Prev</a>
+        {% endif %}
+        <span class="text-muted align-self-center">Page {{ pagination.page }} / {{ pagination.pages }}</span>
+        {% if pagination.has_next %}
+          <a href="?page={{ pagination.next_num }}&type={{ log_type }}" class="btn-sm-custom">Next →</a>
+        {% endif %}
+      </div>
+      {% endif %}
+    </section>
+
+  </main>
+</div>
+<script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('collapsed');
+  }
+</script>
+{% endblock %}

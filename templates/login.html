@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block body %}
+<div class="login-root">
+
+  <!-- Animated grid background -->
+  <div class="login-bg-grid" aria-hidden="true"></div>
+
+  <!-- Scan line effect -->
+  <div class="scan-line" aria-hidden="true"></div>
+
+  <div class="login-card">
+
+    <!-- Logo / header -->
+    <div class="login-header">
+      <div class="shield-icon">
+        <i class="bi bi-shield-lock-fill"></i>
+      </div>
+      <h1 class="login-title">Group 8</h1>
+      <p class="login-subtitle">Network Hardware Monitoring System</p>
+      <div class="login-status-bar">
+        <span class="status-dot online"></span>
+        <span class="status-text">System operational</span>
+        <span class="ms-auto" id="login-clock"></span>
+      </div>
+    </div>
+
+    <!-- Error message -->
+    {% if error %}
+    <div class="alert-box danger" role="alert">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ error }}
+    </div>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+      <div class="alert-box {{ cat }}" role="alert">
+        <i class="bi bi-info-circle-fill me-2"></i>{{ msg }}
+      </div>
+      {% endfor %}
+    {% endwith %}
+
+    <!-- Login form -->
+    <form method="POST" action="{{ url_for('auth.login') }}" class="login-form" autocomplete="off">
+
+      <div class="form-group-custom">
+        <label for="username">
+          <i class="bi bi-person-fill me-1"></i>Username
+        </label>
+        <div class="input-wrapper">
+          <input
+            type="text"
+            id="username"
+            name="username"
+            class="custom-input"
+            placeholder="Enter username"
+            required
+            autocomplete="username"
+            spellcheck="false"
+          />
+          <span class="input-line"></span>
+        </div>
+      </div>
+
+      <div class="form-group-custom">
+        <label for="password">
+          <i class="bi bi-lock-fill me-1"></i>Password
+        </label>
+        <div class="input-wrapper">
+          <input
+            type="password"
+            id="password"
+            name="password"
+            class="custom-input"
+            placeholder="Enter password"
+            required
+            autocomplete="current-password"
+          />
+          <button type="button" class="toggle-pw" onclick="togglePassword()" tabindex="-1" aria-label="Toggle password visibility">
+            <i class="bi bi-eye" id="pw-eye"></i>
+          </button>
+          <span class="input-line"></span>
+        </div>
+      </div>
+
+      <button type="submit" class="login-btn">
+        <i class="bi bi-box-arrow-in-right me-2"></i>Authenticate
+        <span class="btn-shimmer"></span>
+      </button>
+
+    </form>
+
+    <!-- Footer note -->
+    <div class="login-footer">
+      <i class="bi bi-info-circle me-1"></i>
+      Unauthorized access attempts are logged and reported.
+    </div>
+
+  </div>
+
+  <!-- Version tag -->
+  <div class="version-tag">v1.0 &nbsp;|&nbsp; Secure Connection</div>
+</div>
+
+<script>
+  // Live clock on login page
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('login-clock').textContent =
+      now.toLocaleTimeString('en-US', { hour12: false });
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // Toggle password visibility
+  function togglePassword() {
+    const pw  = document.getElementById('password');
+    const eye = document.getElementById('pw-eye');
+    if (pw.type === 'password') {
+      pw.type = 'text';
+      eye.className = 'bi bi-eye-slash';
+    } else {
+      pw.type = 'password';
+      eye.className = 'bi bi-eye';
+    }
+  }
+</script>
+{% endblock %}
