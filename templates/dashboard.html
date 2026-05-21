@@ -117,48 +117,64 @@
         </div>
 
         <div class="camera-viewport">
+          <!-- Webcam feed (laptop built-in) -->
+          <video id="webcam-feed" class="camera-img" autoplay playsinline muted
+                 style="display:none"></video>
+
+          <!-- IP Camera feed -->
           {% if camera and camera.stream_url %}
-            <!-- MJPEG stream: <img> tag auto-streams from IP camera -->
             <img
               id="camera-stream"
               src="{{ camera.stream_url }}"
-              alt="Camera feed"
+              alt="IP Camera feed"
               class="camera-img"
               onerror="cameraError()"
+              style="display:none"
             />
-          {% elif camera %}
-            <!-- No stream URL yet — show placeholder with IP info -->
-            <div class="camera-placeholder">
-              <i class="bi bi-camera-video-off"></i>
-              <p>Stream URL not configured</p>
-              <p class="cam-ip">{{ camera.ip_address }}</p>
-              {% if current_user.is_admin() %}
-              <button class="btn-sm-custom" data-bs-toggle="modal" data-bs-target="#editDevice{{ camera.id }}">
-                <i class="bi bi-pencil me-1"></i>Configure Stream
-              </button>
-              {% endif %}
-            </div>
-          {% else %}
-            <div class="camera-placeholder">
-              <i class="bi bi-camera-video-off"></i>
-              <p>No camera device configured</p>
-            </div>
           {% endif %}
+
+          <!-- Default placeholder — shown until user clicks a button -->
+          <div class="camera-placeholder" id="cam-placeholder">
+            <i class="bi bi-camera-video-off"></i>
+            <p id="cam-placeholder-text">Camera is off</p>
+            <p class="text-muted" style="font-size:0.72rem">Use the buttons below to start</p>
+          </div>
         </div>
 
-        {% if camera %}
+        <!-- Camera control buttons -->
         <div class="camera-footer">
-          <span><i class="bi bi-geo-alt me-1"></i>{{ camera.ip_address }}</span>
-          <span><i class="bi bi-clock me-1"></i>
-            {% if camera.last_seen %}
+          <div class="d-flex gap-2 flex-wrap">
+
+            <!-- Start Webcam -->
+            <button class="btn-sm-custom" id="btn-webcam" onclick="switchToWebcam()">
+              <i class="bi bi-webcam me-1"></i>Webcam
+            </button>
+
+            <!-- IP Camera (only shown if stream URL is configured) -->
+            {% if camera and camera.stream_url %}
+            <button class="btn-sm-custom" id="btn-ipcam" onclick="switchToIPCam()">
+              <i class="bi bi-camera-video me-1"></i>IP Cam
+            </button>
+            {% endif %}
+
+            <!-- Turn Off -->
+            <button class="btn-sm-custom danger" id="btn-camoff" onclick="turnOffCamera()">
+              <i class="bi bi-camera-video-off me-1"></i>Turn Off
+            </button>
+
+          </div>
+
+          <span class="ms-auto"><i class="bi bi-clock me-1"></i>
+            {% if camera and camera.last_seen %}
               {{ camera.last_seen.strftime('%H:%M:%S') }}
-            {% else %}Never{% endif %}
+            {% else %}--:--:--{% endif %}
           </span>
+          {% if camera %}
           <button class="ping-btn" onclick="pingSingle({{ camera.id }}, this)">
             <i class="bi bi-activity"></i> Ping
           </button>
+          {% endif %}
         </div>
-        {% endif %}
       </div>
 
       <!-- Device Status Cards -->
@@ -343,6 +359,128 @@
     {% endif %}
   </div>
 </div>
+
+<script>
+// ── Camera Controls ──────────────────────────────────────────────────────────
+// No auto-start. User controls everything via buttons.
+
+let webcamStream = null;
+
+// ── Helper: reset all button active states ────────────────────────────────────
+function resetCamButtons() {
+  ['btn-webcam', 'btn-ipcam', 'btn-camoff'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+  });
+}
+
+// ── Helper: update the status badge in the panel header ──────────────────────
+function setCamBadge(status, label) {
+  const badge = document.getElementById('cam-status-badge');
+  if (badge) {
+    badge.innerHTML = `<span class="status-dot ${status}"></span> ${label}`;
+  }
+}
+
+// ── Show the placeholder with a message ──────────────────────────────────────
+function showPlaceholder(icon, message) {
+  document.getElementById('webcam-feed').style.display = 'none';
+  const ipImg = document.getElementById('camera-stream');
+  if (ipImg) ipImg.style.display = 'none';
+
+  const placeholder = document.getElementById('cam-placeholder');
+  const text        = document.getElementById('cam-placeholder-text');
+  placeholder.style.display = 'flex';
+  placeholder.querySelector('i').className = `bi ${icon}`;
+  text.textContent = message;
+}
+
+// ── START WEBCAM ─────────────────────────────────────────────────────────────
+async function switchToWebcam() {
+  // If webcam already running, do nothing
+  if (webcamStream) return;
+
+  // Hide IP cam, show loading state
+  const ipImg = document.getElementById('camera-stream');
+  if (ipImg) ipImg.style.display = 'none';
+  showPlaceholder('bi-hourglass-split', 'Starting webcam...');
+
+  try {
+    webcamStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+
+    const video = document.getElementById('webcam-feed');
+    video.srcObject = webcamStream;
+    video.style.display = 'block';
+    document.getElementById('cam-placeholder').style.display = 'none';
+
+    setCamBadge('online', 'Webcam Live');
+    resetCamButtons();
+    document.getElementById('btn-webcam').classList.add('active');
+
+  } catch (err) {
+    let msg = 'Webcam unavailable';
+    if (err.name === 'NotAllowedError')  msg = 'Permission denied — allow camera in browser settings';
+    if (err.name === 'NotFoundError')    msg = 'No webcam found on this device';
+    showPlaceholder('bi-camera-video-off', msg);
+    setCamBadge('offline', 'Unavailable');
+    webcamStream = null;
+  }
+}
+
+// ── SWITCH TO IP CAMERA ───────────────────────────────────────────────────────
+function switchToIPCam() {
+  // Stop webcam if running
+  stopWebcamStream();
+
+  const ipImg = document.getElementById('camera-stream');
+  if (ipImg) {
+    document.getElementById('cam-placeholder').style.display = 'none';
+    ipImg.style.display = 'block';
+    setCamBadge('online', 'IP Camera');
+    resetCamButtons();
+    document.getElementById('btn-ipcam').classList.add('active');
+  } else {
+    showPlaceholder('bi-camera-video-off', 'No IP camera stream configured');
+    setCamBadge('unknown', 'Not configured');
+  }
+}
+
+// ── TURN OFF ──────────────────────────────────────────────────────────────────
+function turnOffCamera() {
+  stopWebcamStream();
+
+  // Hide IP cam feed too
+  const ipImg = document.getElementById('camera-stream');
+  if (ipImg) ipImg.style.display = 'none';
+
+  showPlaceholder('bi-camera-video-off', 'Camera is off');
+  setCamBadge('unknown', 'Off');
+  resetCamButtons();
+  document.getElementById('btn-camoff').classList.add('active');
+}
+
+// ── Internal: stop webcam stream tracks ──────────────────────────────────────
+function stopWebcamStream() {
+  if (webcamStream) {
+    webcamStream.getTracks().forEach(track => track.stop());
+    webcamStream = null;
+  }
+  const video = document.getElementById('webcam-feed');
+  if (video) {
+    video.srcObject = null;
+    video.style.display = 'none';
+  }
+}
+
+// ── IP camera load error ──────────────────────────────────────────────────────
+function cameraError() {
+  showPlaceholder('bi-camera-video-off', 'IP camera stream unreachable — check the stream URL');
+  setCamBadge('offline', 'Offline');
+}
+</script>
 
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}
