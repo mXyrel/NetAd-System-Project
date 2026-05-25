@@ -145,43 +145,58 @@ def create_app():
 
 def _run_migrations():
     """
-    Safe column migrations — adds new columns to existing databases
-    without destroying any existing data. Runs on every startup but
-    only modifies the DB if a column is actually missing.
+    Safe column migrations for both SQLite (local) and PostgreSQL (Railway).
+    Each column gets its own transaction so one failure never blocks the others.
+    Uses TIMESTAMP for PostgreSQL, DATETIME for SQLite.
     """
     from sqlalchemy import text, inspect
     engine = db.engine
 
-    with engine.connect() as conn:
-        inspector = inspect(engine)
+    # Detect database type
+    is_postgres = 'postgresql' in str(engine.url) or 'postgres' in str(engine.url)
+    timestamp_type = 'TIMESTAMP' if is_postgres else 'DATETIME'
+    bool_default   = 'FALSE'     if is_postgres else '0'
 
-        # ── users table new columns ──────────────────────────────────────
-        existing_cols = [c['name'] for c in inspector.get_columns('users')]
-        new_cols = {
-            'failed_login_count':   'INTEGER DEFAULT 0',
-            'locked_until':         'DATETIME',
-            'last_ip':              'VARCHAR(45)',
-            'must_change_password': 'BOOLEAN DEFAULT 0',
-        }
-        for col, col_type in new_cols.items():
-            if col not in existing_cols:
+    inspector = inspect(engine)
+
+    # ── users table ──────────────────────────────────────────────────────────
+    existing_cols = [c['name'] for c in inspector.get_columns('users')]
+    new_cols = {
+        'failed_login_count':   f'INTEGER DEFAULT 0',
+        'locked_until':         f'{timestamp_type}',
+        'last_ip':              f'VARCHAR(45)',
+        'must_change_password': f'BOOLEAN DEFAULT {bool_default}',
+    }
+
+    for col, col_type in new_cols.items():
+        if col not in existing_cols:
+            # Each column gets its own connection + transaction
+            with engine.connect() as conn:
                 try:
                     conn.execute(text(f'ALTER TABLE users ADD COLUMN {col} {col_type}'))
                     conn.commit()
                     print(f'[MIGRATION] Added column users.{col}')
                 except Exception as e:
+                    conn.rollback()
                     print(f'[MIGRATION] Skipping users.{col}: {e}')
 
-        # ── login_logs table new columns ──────────────────────────────────
-        if 'login_logs' in inspector.get_table_names():
-            log_cols = [c['name'] for c in inspector.get_columns('login_logs')]
-            if 'failure_reason' not in log_cols:
+    # ── login_logs table ──────────────────────────────────────────────────────
+    if 'login_logs' in inspector.get_table_names():
+        log_cols = [c['name'] for c in inspector.get_columns('login_logs')]
+        if 'failure_reason' not in log_cols:
+            with engine.connect() as conn:
                 try:
                     conn.execute(text('ALTER TABLE login_logs ADD COLUMN failure_reason VARCHAR(50)'))
                     conn.commit()
                     print('[MIGRATION] Added column login_logs.failure_reason')
                 except Exception as e:
+                    conn.rollback()
                     print(f'[MIGRATION] Skipping login_logs.failure_reason: {e}')
+
+    # ── blocked_ips table (new table — create_all handles it, but verify) ────
+    if 'blocked_ips' not in inspector.get_table_names():
+        print('[MIGRATION] blocked_ips table will be created by db.create_all()')
+
 
 
 def _seed_initial_data():
