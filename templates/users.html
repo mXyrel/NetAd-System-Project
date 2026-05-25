@@ -58,6 +58,7 @@
                 <th>Role</th>
                 <th>Last Login</th>
                 <th>Created</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -73,16 +74,31 @@
                 <td class="text-muted small">{{ u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else 'Never' }}</td>
                 <td class="text-muted small">{{ u.created_at.strftime('%Y-%m-%d') }}</td>
                 <td>
+                  {% if u.is_locked() %}
+                    <span class="badge-fail"><i class="bi bi-lock-fill me-1"></i>Locked</span>
+                  {% else %}
+                    <span class="badge-ok"><i class="bi bi-unlock-fill me-1"></i>Active</span>
+                  {% endif %}
+                </td>
+                <td>
                   <div class="d-flex gap-2 flex-wrap">
                     <!-- Change password -->
-                    <button class="btn-sm-custom" data-bs-toggle="modal" data-bs-target="#changePw{{ u.id }}">
+                    <button class="btn-sm-custom" data-bs-toggle="modal" data-bs-target="#changePw{{ u.id }}" title="Change password">
                       <i class="bi bi-key"></i>
                     </button>
+                    <!-- Unlock if locked -->
+                    {% if u.is_locked() %}
+                    <form method="POST" action="{{ url_for('dashboard.unlock_user', user_id=u.id) }}">
+                      <button type="submit" class="btn-sm-custom" title="Unlock account" style="border-color:rgba(0,230,118,.3);color:var(--clr-green)">
+                        <i class="bi bi-unlock"></i>
+                      </button>
+                    </form>
+                    {% endif %}
                     <!-- Delete (not self) -->
                     {% if u.id != current_user.id %}
                     <form method="POST" action="{{ url_for('dashboard.delete_user', user_id=u.id) }}"
                           onsubmit="return confirm('Delete user {{ u.username }}?')">
-                      <button type="submit" class="btn-sm-custom danger"><i class="bi bi-trash"></i></button>
+                      <button type="submit" class="btn-sm-custom danger" title="Delete user"><i class="bi bi-trash"></i></button>
                     </form>
                     {% endif %}
                   </div>
@@ -127,7 +143,7 @@
           <div class="mb-3">
             <label class="form-label">Password</label>
             <input type="password" name="password" class="form-control dark-input" minlength="8" required />
-            <div class="form-text">Min 8 characters, include uppercase & digit.</div>
+            <div class="form-text">Min 8 chars, uppercase, digit, special char.</div>
           </div>
           <div class="mb-3">
             <label class="form-label">Role</label>
@@ -143,6 +159,72 @@
       </div>
 
     </div>
+
+    <!-- ── IP Blocking Panel ──────────────────────────────────────────────── -->
+    <div style="margin:0 1.5rem 1.5rem;display:grid;grid-template-columns:1fr 360px;gap:1.5rem;">
+
+      <!-- Blocked IPs table -->
+      <div class="panel">
+        <div class="panel-header"><i class="bi bi-slash-circle-fill me-2"></i>Blocked IP Addresses</div>
+        <div class="log-table-wrap">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>IP Address</th>
+                <th>Reason</th>
+                <th>Blocked By</th>
+                <th>Blocked At</th>
+                <th>Expires</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for b in blocked_ips %}
+              <tr>
+                <td><code>{{ b.ip_address }}</code></td>
+                <td class="text-muted small">{{ b.reason }}</td>
+                <td class="text-muted small">{{ b.blocked_by }}</td>
+                <td class="text-muted small">{{ b.blocked_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td class="text-muted small">{{ b.expires_at.strftime('%Y-%m-%d %H:%M') if b.expires_at else 'Permanent' }}</td>
+                <td>
+                  <form method="POST" action="{{ url_for('dashboard.unblock_ip', block_id=b.id) }}"
+                        onsubmit="return confirm('Unblock {{ b.ip_address }}?')">
+                    <button type="submit" class="btn-sm-custom" style="color:var(--clr-green);border-color:rgba(0,230,118,.3)">
+                      <i class="bi bi-check-circle me-1"></i>Unblock
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="6" class="text-center text-muted py-3">No blocked IPs.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Block IP form -->
+      <div class="panel" style="height:fit-content">
+        <div class="panel-header"><i class="bi bi-shield-x me-2"></i>Block an IP</div>
+        <form method="POST" action="{{ url_for('dashboard.block_ip') }}" class="p-3">
+          <div class="mb-3">
+            <label class="form-label">IP Address</label>
+            <input type="text" name="ip_address" class="form-control dark-input"
+                   placeholder="e.g. 192.168.1.50" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Reason</label>
+            <input type="text" name="reason" class="form-control dark-input"
+                   placeholder="Manually blocked by admin" />
+          </div>
+          <button type="submit" class="btn btn-danger w-100">
+            <i class="bi bi-slash-circle me-2"></i>Block IP
+          </button>
+        </form>
+      </div>
+
+    </div>
+
   </main>
 </div>
 
