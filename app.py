@@ -76,9 +76,11 @@ def create_app():
     # ── HTTPS redirect in production ──────────────────────────────────────
     @app.before_request
     def force_https():
-        if os.environ.get('FLASK_ENV') == 'production' and not request.is_secure:
-            url = request.url.replace('http://', 'https://', 1)
-            return redirect(url, code=301)
+        if os.environ.get('FLASK_ENV') == 'production':
+            forwarded_proto = request.headers.get('X-Forwarded-Proto', '')
+            if forwarded_proto == 'http':
+                url = request.url.replace('http://', 'https://', 1)
+                return redirect(url, code=301)
 
     # ── Session fingerprinting — detects stolen session cookies ──────────
     @app.before_request
